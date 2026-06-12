@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _socket = SocketService('http://10.0.2.2:3000');
+    _socket = SocketService('http://localhost:3000');
     _socket.connect(widget.userId);
     _setupSocketListeners();
     _getCurrentLocation();
