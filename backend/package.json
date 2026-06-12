@@ -1,0 +1,12 @@
+{
+  "name": "sheride-backend",
+  "version": "1.0.0",
+  "description": "SheRide backend - Uber clone for women",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4",
+    "sql.js": "^1.10.0",
+    "cors": "^2.8.5"
+  }
+}

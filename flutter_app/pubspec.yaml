@@ -1,0 +1,24 @@
+name: sheride
+description: SheRide - Women's ride sharing app (Uber clone)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  http: ^1.2.0
+  socket_io_client: ^2.0.3+1
+  geolocator: ^11.0.0
+  geocoding: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

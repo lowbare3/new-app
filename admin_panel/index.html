@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SheRide Admin Panel</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #f5f5f5; }
+    .login-screen { display: flex; align-items: center; justify-content: center; height: 100vh; background: #1a1a2e; }
+    .login-box { background: #fff; padding: 40px; border-radius: 16px; width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .login-box h1 { color: #E91E63; margin-bottom: 8px; font-size: 28px; }
+    .login-box p { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .login-box input { width: 100%; padding: 14px 16px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; margin-bottom: 16px; outline: none; transition: border 0.2s; }
+    .login-box input:focus { border-color: #E91E63; }
+    .login-box button { width: 100%; padding: 14px; background: #E91E63; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .login-box button:hover { background: #C2185B; }
+    .dashboard { display: none; height: 100vh; overflow: hidden; }
+    .header { background: #1a1a2e; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .header h2 { font-size: 20px; }
+    .header h2 span { color: #E91E63; }
+    .header .badge { background: #E91E63; padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+    .main { display: flex; height: calc(100vh - 52px); }
+    .map-section { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+    .panel { width: 420px; min-width: 420px; background: #fff; overflow-y: auto; border-left: 1px solid #e0e0e0; }
+    .panel h3 { padding: 16px 20px; border-bottom: 1px solid #eee; font-size: 16px; color: #333; }
+    .request-card { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.2s; }
+    .request-card:hover { background: #fafafa; }
+    .request-card .header-row { display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px; }
+    .request-card .user-name { font-weight: 600; font-size: 15px; color: #222; }
+    .request-card .vehicle-badge { background: #fce4ec; color: #E91E63; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .request-card .address { font-size: 13px; color: #666; margin: 4px 0; display: flex; align-items: center; gap: 6px; }
+    .request-card .fare { font-weight: 600; color: #2e7d32; font-size: 14px; margin: 6px 0; }
+    .request-card .status { font-size: 12px; padding: 3px 10px; border-radius: 12px; display: inline-block; margin-top: 6px; }
+    .status-finding { background: #fff3e0; color: #e65100; }
+    .status-requested { background: #e3f2fd; color: #1565c0; }
+    .status-approved { background: #e8f5e9; color: #2e7d32; }
+    .status-driver_assigned { background: #f3e5f5; color: #6a1b9a; }
+    .status-driver_arrived { background: #fff8e1; color: #f57f17; }
+    .status-in_progress { background: #e8f5e9; color: #1b5e20; }
+    .status-completed { background: #eceff1; color: #37474f; }
+    .action-buttons { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .action-buttons button { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-approve { background: #4CAF50; color: #fff; }
+    .btn-arrived { background: #FF9800; color: #fff; }
+    .btn-start { background: #2196F3; color: #fff; }
+    .btn-end { background: #f44336; color: #fff; }
+    .btn-cancel { background: #9e9e9e; color: #fff; }
+    .driver-info { background: #fafafa; border-radius: 8px; padding: 10px; margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+    .driver-info img { width: 36px; height: 36px; border-radius: 50%; background: #eee; }
+    .driver-info .details { font-size: 13px; }
+    .driver-info .details .name { font-weight: 600; }
+    .driver-info .details .car { color: #666; font-size: 12px; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: #999; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+    .notification { position: fixed; top: 20px; right: 20px; background: #1a1a2e; color: #fff; padding: 14px 24px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 1000; transform: translateX(120%); transition: transform 0.3s ease; }
+    .notification.show { transform: translateX(0); }
+    @media (max-width: 900px) { .main { flex-direction: column; } .panel { width: 100%; min-width: unset; max-height: 50vh; } }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h1>SheRide Admin</h1>
+      <p>Sign in to manage rides</p>
+      <input type="text" id="phoneInput" placeholder="Phone number" value="9999990000" />
+      <button onclick="login()">Sign In</button>
+    </div>
+  </div>
+
+  <div id="dashboard" class="dashboard">
+    <div class="header">
+      <h2><span>She</span>Ride Admin Panel</h2>
+      <span class="badge" id="rideCount">0 active rides</span>
+    </div>
+    <div class="main">
+      <div class="map-section">
+        <div id="map"></div>
+      </div>
+      <div class="panel" id="requestPanel">
+        <h3>Ride Requests</h3>
+        <div id="requestList">
+          <div class="empty-state">
+            <div class="icon">🚗</div>
+            <p>No ride requests yet. Waiting for users...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <script>
+    let socket;
+    let map;
+    let markers = {};
+    let currentAdmin = null;
+    let selectedRide = null;
+
+    function login() {
+      const phone = document.getElementById('phoneInput').value.trim();
+      if (!phone) return alert('Enter phone number');
+      currentAdmin = { id: 'admin_1', phone, name: 'Admin' };
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      initMap();
+      connectSocket();
+    }
+
+    function initMap() {
+      map = L.map('map').setView([28.6139, 77.2090], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
+
+      fetch('http://localhost:3000/api/drivers')
+        .then(r => r.json())
+        .then(data => {
+          data.drivers.forEach(d => {
+            const icon = L.divIcon({
+              html: '<div style="background:#4CAF50;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🚗</div>',
+              className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+            });
+            const m = L.marker([d.lat, d.lng], { icon }).addTo(map).bindTooltip(d.name + ' - ' + d.carModel, { permanent: false });
+            markers['driver_' + d.id] = m;
+          });
+        });
+    }
+
+    function connectSocket() {
+      socket = io('http://localhost:3000');
+
+      socket.on('admin_ride_update', (ride) => {
+        updateRequestList();
+        showNotification('Ride update: ' + (ride.userName || 'User') + ' - ' + ride.status);
+      });
+
+      socket.on('admin_driver_location', (data) => {
+        const m = markers['driver_' + data.rideId];
+        if (m) {
+          m.setLatLng([data.lat, data.lng]);
+        }
+      });
+
+      socket.on('ride_awaiting_approval', (ride) => {
+        updateRequestList();
+        showNotification('New ride request from ' + (ride.userName || 'User'));
+        playSound();
+      });
+
+      socket.on('ride_update', (ride) => {
+        updateRequestList();
+      });
+
+      socket.on('ride_completed', (ride) => {
+        updateRequestList();
+        showNotification('Ride completed — Fare: ₹' + ride.fare);
+        playSound();
+      });
+    }
+
+    function updateRequestList() {
+      fetch('http://localhost:3000/api/active-rides')
+        .then(r => r.json())
+        .then(data => {
+          const list = document.getElementById('requestList');
+          const count = document.getElementById('rideCount');
+          if (!data.rides || data.rides.length === 0) {
+            list.innerHTML = '<div class="empty-state"><div class="icon">🚗</div><p>No ride requests yet. Waiting for users...</p></div>';
+            count.textContent = '0 active rides';
+            return;
+          }
+          count.textContent = data.rides.length + ' active ride' + (data.rides.length > 1 ? 's' : '');
+          list.innerHTML = data.rides.map(r => renderRideCard(r)).join('');
+          data.rides.forEach(r => {
+            updateUserMarker(r);
+            if (r.driver) {
+              updateDriverMarker(r.driver_id, r.driver);
+            }
+          });
+        });
+    }
+
+    function renderRideCard(r) {
+      const statusClass = 'status-' + r.status;
+      const statusLabels = {
+        finding_driver: 'Finding Driver...',
+        requested: 'Awaiting Approval',
+        approved: 'Approved',
+        driver_assigned: 'Driver Assigned',
+        driver_arrived: 'Driver Arrived',
+        in_progress: 'In Progress',
+        completed: 'Completed',
+        cancelled: 'Cancelled',
+      };
+
+      let actions = '';
+      let driverHtml = '';
+
+      if (r.status === 'requested' || r.status === 'finding_driver') {
+        actions = `<button class="btn-approve" onclick="approveRide('${r.id}')">✓ Approve</button><button class="btn-cancel" onclick="cancelRide('${r.id}')">✕ Cancel</button>`;
+      } else if (r.status === 'driver_assigned') {
+        actions = `<button class="btn-arrived" onclick="driverArrived('${r.id}')">📍 Driver Arrived</button><button class="btn-cancel" onclick="cancelRide('${r.id}')">✕ Cancel</button>`;
+      } else if (r.status === 'driver_arrived') {
+        actions = `<button class="btn-start" onclick="startRide('${r.id}')">▶ Start Ride</button>`;
+      } else if (r.status === 'in_progress') {
+        actions = `<button class="btn-end" onclick="endRide('${r.id}')">■ End Ride</button>`;
+      }
+
+      if (r.driver) {
+        driverHtml = `
+          <div class="driver-info">
+            <img src="${r.driver.photo || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + r.driver.name}" />
+            <div class="details">
+              <div class="name">${r.driver.name} ⭐${r.driver.rating || '-'}</div>
+              <div class="car">${r.driver.carModel} (${r.driver.carColor}) · ${r.driver.plate}</div>
+            </div>
+          </div>`;
+      }
+
+      return `
+        <div class="request-card" onclick="selectRide('${r.id}')">
+          <div class="header-row">
+            <span class="user-name">${r.user_name || r.userName || 'User'}</span>
+            <span class="vehicle-badge">${r.vehicle_type || 'N/A'}</span>
+          </div>
+          <div class="address">📍 ${r.pickup_address || r.pickup_lat + ', ' + r.pickup_lng}</div>
+          <div class="address">🏁 ${r.drop_address || r.drop_lat + ', ' + r.drop_lng}</div>
+          <div class="fare">₹${r.fare_estimate || 0}</div>
+          <span class="status ${statusClass}">${statusLabels[r.status] || r.status}</span>
+          ${driverHtml}
+          ${actions ? '<div class="action-buttons">' + actions + '</div>' : ''}
+        </div>`;
+    }
+
+    function approveRide(rideId) {
+      fetch('http://localhost:3000/api/approve-ride', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rideId })
+      }).then(r => r.json()).then(data => {
+        if (data.success) {
+          showNotification('Driver assigned: ' + data.driver.name);
+          if (data.driver) updateDriverMarker(rideId, data.driver);
+        } else {
+          alert(data.message || 'Failed to approve');
+        }
+      });
+    }
+
+    function driverArrived(rideId) {
+      fetch('http://localhost:3000/api/driver-arrived', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rideId })
+      }).then(r => r.json()).then(() => showNotification('Driver marked as arrived'));
+    }
+
+    function startRide(rideId) {
+      fetch('http://localhost:3000/api/start-ride', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rideId })
+      }).then(r => r.json()).then(() => showNotification('Ride started'));
+    }
+
+    function endRide(rideId) {
+      fetch('http://localhost:3000/api/end-ride', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rideId })
+      }).then(r => r.json()).then(() => showNotification('Ride completed'));
+    }
+
+    function cancelRide(rideId) {
+      if (!confirm('Cancel this ride?')) return;
+      fetch('http://localhost:3000/api/end-ride', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rideId })
+      }).then(r => r.json()).then(() => showNotification('Ride cancelled'));
+    }
+
+    function selectRide(rideId) {
+      selectedRide = rideId;
+    }
+
+    function updateUserMarker(ride) {
+      const key = 'user_' + ride.user_id;
+      if (!markers[key]) {
+        const icon = L.divIcon({
+          html: '<div style="background:#E91E63;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">👤</div>',
+          className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+        });
+        markers[key] = L.marker([ride.pickup_lat, ride.pickup_lng], { icon }).addTo(map)
+          .bindTooltip((ride.user_name || ride.userName || 'User') + ' - Pickup', { permanent: false });
+      } else {
+        markers[key].setLatLng([ride.pickup_lat, ride.pickup_lng]);
+      }
+      if (ride.drop_lat && ride.drop_lng) {
+        const dropKey = 'drop_' + ride.id;
+        if (!markers[dropKey]) {
+          const icon = L.divIcon({
+            html: '<div style="background:#f44336;color:#fff;padding:2px 4px;border-radius:4px;font-size:11px;font-weight:600;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🏁</div>',
+            className: '', iconSize: [20, 20], iconAnchor: [10, 10]
+          });
+          markers[dropKey] = L.marker([ride.drop_lat, ride.drop_lng], { icon }).addTo(map)
+            .bindTooltip('Dropoff', { permanent: false });
+        }
+      }
+    }
+
+    function updateDriverMarker(rideId, driver) {
+      const key = 'driver_' + rideId;
+      if (markers[key]) {
+        markers[key].setLatLng([driver.lat, driver.lng]);
+      } else {
+        const icon = L.divIcon({
+          html: '<div style="background:#9C27B0;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🚗</div>',
+          className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+        markers[key] = L.marker([driver.lat, driver.lng], { icon }).addTo(map)
+          .bindTooltip(driver.name + ' → ' + (rideId || ''), { permanent: false });
+      }
+    }
+
+    let notifTimeout;
+
+    function showNotification(msg) {
+      const el = document.getElementById('notification');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(notifTimeout);
+      notifTimeout = setTimeout(() => el.classList.remove('show'), 4000);
+    }
+
+    function playSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.1;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (e) { /* ignore */ }
+    }
+
+    setInterval(updateRequestList, 3000);
+  </script>
+</body>
+</html>
