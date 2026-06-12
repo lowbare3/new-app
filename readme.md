@@ -39,7 +39,7 @@ flutter run
 5. Backend: Assigns nearest female driver
 6. App: Shows driver moving toward pickup (animated)
 7. Admin: Mark Arrived → Start Ride → End Ride
-8. App: Shows receipt
+8. App: Shows receipt.
 
 ## Tech Stack
 - Backend: Node.js, Express, Socket.IO, sql.js (SQLite)
